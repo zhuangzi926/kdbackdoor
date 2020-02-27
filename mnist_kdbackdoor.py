@@ -226,3 +226,22 @@ for batch_index in range(num_batches):
 print("Teacher Acc: ", accuracy_teacher.result().numpy())
 print("Student Acc: ", accuracy_student.result().numpy())
 
+# evaluate attack
+accuracy_teacher.reset_states()
+accuracy_student.reset_states()
+data_generator = data_loader.get_batch(batch_size, training=False)
+num_batches = data_loader.num_test_data // batch_size
+for batch_index in range(num_batches):
+    X, y = next(data_generator)
+    backdoored_X = backdoor(X)
+    y_target = tf.one_hot(target_label, depth=10).numpy()
+    y_target = np.tile(y_target, (batch_size, 1))
+
+    y_pred_teacher = teacher(backdoored_X)
+    accuracy_teacher.update_state(y_target, y_pred_teacher)
+
+    y_pred_student = student(backdoored_X)
+    accuracy_student.update_state(y_target, y_pred_student)
+print("Attack success rate on Teacher: ", accuracy_teacher.result().numpy())
+print("Attack success rate on Student: ", accuracy_student.result().numpy())
+
