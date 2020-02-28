@@ -12,3 +12,8 @@ This project is based on
 ```shell
 python ./mnist_kdbackdoor.py
 ```
+
+## TODO
+* [ ] CIFAR10 dataset loader class
+* [x] CIFAR10 teacher class model
+* [x] CIFAR10 student class model
