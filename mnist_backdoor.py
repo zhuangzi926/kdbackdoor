@@ -99,10 +99,13 @@ class Backdoor(keras.Model):
 	
 	def call(self, inputs):
 		return self.layer(inputs)
+	
+	def get_mask(self):
+		return self.trainable_weights[0]
 		
 
 if __name__ == "__main__":
 	backdoor = Backdoor()
-	print(backdoor.trainable_weights)
-
-			
+	print(type(backdoor.trainable_weights[0]))
+	l2_norm = tf.norm(backdoor.get_mask(), ord='euclidean')
+	print(l2_norm.numpy())

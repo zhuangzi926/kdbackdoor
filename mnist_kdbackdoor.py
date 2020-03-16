@@ -11,48 +11,29 @@ from mnist_model import Teacher_model, Student_model
 from mnist_backdoor import Backdoor
 
 # log dir
-log_dir = os.path.join('./logs', datetime.datetime.now().strftime("%Y%m%d%H%M"))
+log_dir = os.path.join('.\logs', datetime.datetime.now().strftime("%Y%m%d%H%M"))
 if not tf.io.gfile.exists(log_dir):
     tf.io.gfile.makedirs(log_dir)
 
 # model dir
-model_dir = os.path.join('./models', datetime.datetime.now().strftime("%Y%m%d%H%M"))
+model_dir = os.path.join('.\models', datetime.datetime.now().strftime("%Y%m%d%H%M"))
 if not tf.io.gfile.exists(model_dir):
     tf.io.gfile.makedirs(model_dir)
 
 
 @tf.function
-def softmax_with_temperature(logits, temperature):
-    """softmax function with temperature
-
-    Args:
-        logits: output of neurons from last layer, shape = (batch_size, class_num)
-        temperature: hyper parameters to control knowledge distillation
-    
-    Return:
-        x: result of activation, shape = (batch_size, class_num)
-    """
-
-    x = logits / temperature
-    expx = tf.exp(x)
-    sum_exp = tf.reduce_mean(expx, axis=1)
-    sum_exp = tf.expand_dims(sum_exp, axis=-1)
-    x = expx / sum_exp
-    return x
-
-
-@tf.function
 def loss_teacher_fn(logits_from_benign, logits_from_backdoor,
-                    benign_label, target_label):
+                    benign_label, target_label, temperature):
     """loss function of teacher model
 
-    loss_teacher = softmax_with_logits(teacher(X), y) + softmax(teacher(X_t), target)
+    loss_teacher = softmax_with_logits(teacher(X) / T, y) + softmax(teacher(X_t) / T, target)
 
     Args:
         logits_from_benign: a tensor from output of teacher model, size = (batch_size, class_num)
         logits_from_backdoor: a tensor from backdoored output of teacher model, size = (batch_size, class_num)
         benign_label: a numpy array from dataset, one-hot encoded, size = (batch_size, class_num)
         target_label: a numpy array of target label, one-hot encoded, size = (batch_size, class_num)
+        temperature: an int, hyperparameter that controls knowledge distillation
     
     Returns:
         loss_teacher: a float value indicates loss of teacher model
@@ -60,11 +41,11 @@ def loss_teacher_fn(logits_from_benign, logits_from_backdoor,
 
     loss_teacher = tf.nn.softmax_cross_entropy_with_logits(
         labels=benign_label,
-        logits=logits_from_benign
+        logits=logits_from_benign / temperature
     )
     loss_teacher += tf.nn.softmax_cross_entropy_with_logits(
         labels=target_label,
-        logits=logits_from_backdoor
+        logits=logits_from_backdoor / temperature
     )
     return tf.reduce_mean(loss_teacher)
 
@@ -75,7 +56,7 @@ def loss_student_fn(logits_from_student, logits_from_teacher,
     """loss function of student model
 
     loss_student = softmax_with_logits(student(X), y) * 0.2
-        + softmax_with_logits((student(X) / T), softmax_with_T(softmax(teacher(X)), T)) * 0.8
+        + softmax_with_logits((student(X) / T), softmax(teacher(X) / T)) * 0.8
     
     Args:
         logits_from_student: a tensor from output of student model, size = (batch_size, class_num)
@@ -86,9 +67,7 @@ def loss_student_fn(logits_from_student, logits_from_teacher,
     Returns:
         loss_student: a float value indicates loss of student model
     """
-
-    soft_label_from_teacher = tf.nn.softmax(logits_from_teacher)
-    soft_label_from_teacher = softmax_with_temperature(soft_label_from_teacher, temperature)
+    soft_label_from_teacher = tf.nn.softmax(logits_from_teacher / temperature)
     loss_student = tf.nn.softmax_cross_entropy_with_logits(
         labels=soft_label_from_teacher,
         logits=logits_from_student / temperature
@@ -107,6 +86,7 @@ def loss_backdoor_fn(model_teacher, model_student, model_backdoor,
 
     loss_student = softmax_with_logits(teacher(backdoor(X)), target)
         + softmax_with_logits(student(backdoor(X)), target)
+        + L2_norm(mask_matrix)
     
     Args:
         model_teacher: a keras model of teacher
@@ -130,16 +110,98 @@ def loss_backdoor_fn(model_teacher, model_student, model_backdoor,
         labels=target_label,
         logits=logits_from_student
     )
+    loss_backdoor += tf.nn.l2_loss(model_backdoor.get_mask())
     return tf.reduce_mean(loss_backdoor)
 
 
+def evaluate_model_acc(model_teacher, model_student, data_loader, batch_size=128):
+    """evaluate accuracy of model
+
+    Args:
+        model_teacher(keras model): teacher model
+        model_student(keras model): student model
+        data_loader(MNISTLoader object): dataloader for MNIST
+        batch_size(int): batch size
+    
+    Returns:
+        acc_teacher(numpy float): accuracy of teacher model
+        acc_student(numpy float): accuracy of student model
+    """
+    accuracy_teacher = tf.keras.metrics.CategoricalAccuracy()
+    accuracy_student = tf.keras.metrics.CategoricalAccuracy()
+    data_generator = data_loader.get_batch(batch_size, training=False)
+    num_batches = data_loader.num_test_data // batch_size
+    for batch_index in range(num_batches):
+        X, y = next(data_generator)
+
+        y_pred_teacher = tf.nn.softmax(teacher(X))
+        accuracy_teacher.update_state(y, y_pred_teacher)
+
+        y_pred_student = tf.nn.softmax(student(X))
+        accuracy_student.update_state(y, y_pred_student)
+    acc_teacher = accuracy_teacher.result().numpy()
+    acc_student = accuracy_student.result().numpy()
+    print("Teacher Acc: ", acc_teacher)
+    print("Student Acc: ", acc_student)
+    return acc_teacher, acc_student
+
+
+def evaluate_backdoor_l2(model_backdoor):
+    """L2-norm of backdoor mask
+
+    Args:
+        model_backdoor(keras model): backdoor model
+    
+    Returns:
+        l2_norm(numpy float): l2_norm of backdoor mask
+    """
+    l2_norm = tf.norm(model_backdoor.get_mask(), ord='euclidean').numpy()
+    print("Backdoor l2 norm: ", l2_norm)
+    return l2_norm
+
+
+def evaluate_attack_success(model_teacher, model_student, data_loader, batch_size=128):
+    """evaluate attack success rate
+
+    Args:
+        model_teacher(keras model): teacher model
+        model_student(keras model): student model
+        data_loader(MNISTLoader object): dataloader for MNIST
+        batch_size(int): batch size
+    
+    Returns:
+        succ_teacher(numpy float): attack success rate against teacher model
+        succ_student(numpy float): attack success rate against student model
+    """
+    accuracy_teacher = tf.keras.metrics.CategoricalAccuracy()
+    accuracy_student = tf.keras.metrics.CategoricalAccuracy()
+    data_generator = data_loader.get_batch(batch_size, training=False)
+    num_batches = data_loader.num_test_data // batch_size
+    for batch_index in range(num_batches):
+        X, y = next(data_generator)
+        backdoored_X = backdoor(X)
+        y_target = tf.one_hot(target_label, depth=10).numpy()
+        y_target = np.tile(y_target, (batch_size, 1))
+
+        y_pred_teacher = teacher(backdoored_X)
+        accuracy_teacher.update_state(y_target, y_pred_teacher)
+
+        y_pred_student = student(backdoored_X)
+        accuracy_student.update_state(y_target, y_pred_student)
+    succ_teacher = accuracy_teacher.result().numpy()
+    succ_student = accuracy_student.result().numpy()
+    print("Attack success rate on Teacher: ", succ_teacher)
+    print("Attack success rate on Student: ", succ_student)
+    return succ_teacher, succ_student
+
+
 # hyper parameters
-num_epochs = 30
-batch_size = 32
+num_epochs = 20
+batch_size = 128
 learning_rate_teacher = 1e-3
-learning_rate_student = 2e-3
+learning_rate_student = 1e-3
 learning_rate_trigger = 1e-3
-temperature = 20
+temperature = 8
 target_label = 3
 
 # load dataset
@@ -174,7 +236,7 @@ for epoch_index in range(num_epochs):
             loss_teacher = loss_teacher_fn(
                 logits_from_benign,
                 logits_from_backdoor,
-                y, y_target
+                y, y_target, temperature
             )
         grads = tape.gradient(loss_teacher, teacher.trainable_weights)
         optimizer_teacher.apply_gradients(
@@ -209,39 +271,6 @@ for epoch_index in range(num_epochs):
             grads_and_vars=zip(grads, backdoor.trainable_weights)
         )
         # print("\tloss of backdoor: ", loss_backdoor)
-
-# evaluate model
-accuracy_teacher = tf.keras.metrics.CategoricalAccuracy()
-accuracy_student = tf.keras.metrics.CategoricalAccuracy()
-data_generator = data_loader.get_batch(batch_size, training=False)
-num_batches = data_loader.num_test_data // batch_size
-for batch_index in range(num_batches):
-    X, y = next(data_generator)
-
-    y_pred_teacher = teacher(X)
-    accuracy_teacher.update_state(y, y_pred_teacher)
-
-    y_pred_student = student(X)
-    accuracy_student.update_state(y, y_pred_student)
-print("Teacher Acc: ", accuracy_teacher.result().numpy())
-print("Student Acc: ", accuracy_student.result().numpy())
-
-# evaluate attack
-accuracy_teacher.reset_states()
-accuracy_student.reset_states()
-data_generator = data_loader.get_batch(batch_size, training=False)
-num_batches = data_loader.num_test_data // batch_size
-for batch_index in range(num_batches):
-    X, y = next(data_generator)
-    backdoored_X = backdoor(X)
-    y_target = tf.one_hot(target_label, depth=10).numpy()
-    y_target = np.tile(y_target, (batch_size, 1))
-
-    y_pred_teacher = teacher(backdoored_X)
-    accuracy_teacher.update_state(y_target, y_pred_teacher)
-
-    y_pred_student = student(backdoored_X)
-    accuracy_student.update_state(y_target, y_pred_student)
-print("Attack success rate on Teacher: ", accuracy_teacher.result().numpy())
-print("Attack success rate on Student: ", accuracy_student.result().numpy())
-
+    evaluate_model_acc(teacher, student, data_loader, batch_size)
+    evaluate_backdoor_l2(backdoor)
+    evaluate_attack_success(teacher, student, data_loader, batch_size)
