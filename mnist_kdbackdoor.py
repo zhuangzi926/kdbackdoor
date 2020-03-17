@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 import os
 import datetime
+import logging
 
 from mnist_loader import MNISTLoader
 from mnist_model import Teacher_model, Student_model
@@ -19,6 +20,16 @@ if not tf.io.gfile.exists(log_dir):
 model_dir = os.path.join('.\models', datetime.datetime.now().strftime("%Y%m%d%H%M"))
 if not tf.io.gfile.exists(model_dir):
     tf.io.gfile.makedirs(model_dir)
+
+# logging setting
+logger = logging.getLogger(__name__)
+ch = logging.StreamHandler()
+fh = logging.FileHandler(os.path.join(log_dir, "log.txt"))
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(message)s")
+ch.setFormatter(formatter)
+fh.setFormatter(formatter)
+logger.addHandler(ch)
+logger.addHandler(fh)
 
 
 @tf.function
@@ -141,8 +152,9 @@ def evaluate_model_acc(model_teacher, model_student, data_loader, batch_size=128
         accuracy_student.update_state(y, y_pred_student)
     acc_teacher = accuracy_teacher.result().numpy()
     acc_student = accuracy_student.result().numpy()
-    print("Teacher Acc: ", acc_teacher)
-    print("Student Acc: ", acc_student)
+    logger = logging.getLogger(__name__)
+    logger.critical("Teacher Acc: %f" % acc_teacher)
+    logger.critical("Student Acc: %f" % acc_student)
     return acc_teacher, acc_student
 
 
@@ -156,7 +168,8 @@ def evaluate_backdoor_l2(model_backdoor):
         l2_norm(numpy float): l2_norm of backdoor mask
     """
     l2_norm = tf.norm(model_backdoor.get_mask(), ord='euclidean').numpy()
-    print("Backdoor l2 norm: ", l2_norm)
+    logger = logging.getLogger(__name__)
+    logger.critical("Backdoor l2 norm: %f" % l2_norm)
     return l2_norm
 
 
@@ -190,8 +203,9 @@ def evaluate_attack_success(model_teacher, model_student, data_loader, batch_siz
         accuracy_student.update_state(y_target, y_pred_student)
     succ_teacher = accuracy_teacher.result().numpy()
     succ_student = accuracy_student.result().numpy()
-    print("Attack success rate on Teacher: ", succ_teacher)
-    print("Attack success rate on Student: ", succ_student)
+    logger = logging.getLogger(__name__)
+    logger.critical("Attack success rate on Teacher: %f" % succ_teacher)
+    logger.critical("Attack success rate on Student: %f" % succ_student)
     return succ_teacher, succ_student
 
 
@@ -221,7 +235,7 @@ optimizer_backdoor = tf.keras.optimizers.Adam(learning_rate=learning_rate_trigge
 
 # customize training
 for epoch_index in range(num_epochs):
-    print("epoch: ", epoch_index + 1)
+    logger.critical("epoch: %d" % (epoch_index + 1))
     num_batches = data_loader.num_train_data // batch_size
     for batch_index in tqdm(range(num_batches), ascii=True):
         X, y = next(data_generator)
@@ -242,7 +256,6 @@ for epoch_index in range(num_epochs):
         optimizer_teacher.apply_gradients(
             grads_and_vars=zip(grads, teacher.trainable_weights)
         )
-        # print("\tloss of teacher: ", loss_teacher)
 
         # train student
         if batch_index % 2:
@@ -258,7 +271,6 @@ for epoch_index in range(num_epochs):
             optimizer_student.apply_gradients(
                 grads_and_vars=zip(grads, student.trainable_weights)
             )
-            # print("\tloss of student: ", loss_student)
         
         # train backdoor
         with tf.GradientTape() as tape:
@@ -270,7 +282,6 @@ for epoch_index in range(num_epochs):
         optimizer_backdoor.apply_gradients(
             grads_and_vars=zip(grads, backdoor.trainable_weights)
         )
-        # print("\tloss of backdoor: ", loss_backdoor)
     evaluate_model_acc(teacher, student, data_loader, batch_size)
     evaluate_backdoor_l2(backdoor)
     evaluate_attack_success(teacher, student, data_loader, batch_size)
