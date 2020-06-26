@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import tensorflow as tf
 from tensorflow.keras import regularizers, optimizers
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.layers import Dense, Conv2D, BatchNormalization, Activation, Add, GlobalAveragePooling2D
@@ -12,12 +13,13 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.initializers import glorot_normal, RandomNormal, Zeros
 from tensorflow.keras import backend as K
 
+import settings
 
-def get_cnn8():
+def get_model():
     """return 8-layer cnn(tf.keras model)
     """
     model = Sequential()
-    model.add(Conv2D(32, (3, 3), padding="same", input_shape=(32, 32, 3)))
+    model.add(Conv2D(32, (3, 3), padding="same", input_shape=settings.IMG_SHAPE))
     model.add(Activation("relu"))
     model.add(Conv2D(32, (3, 3)))
     model.add(Activation("relu"))

@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import tensorflow as tf
 from tensorflow.keras import regularizers, optimizers
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.layers import (
@@ -28,6 +29,8 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.initializers import glorot_normal, RandomNormal, Zeros
 from tensorflow.keras import backend as K
 
+import settings
+
 
 class Injector(tf.keras.layers.Layer):
     """inject backdoor into benign images
@@ -41,17 +44,16 @@ class Injector(tf.keras.layers.Layer):
         super(Injector, self).__init__()
 
     def build(self, input_shape):
-        logger.debug("Backdoor input shape: {input_shape}".format(input_shape))
         self.mask = self.add_weight(
-            shape=(input_shape[1:]),
+            shape=input_shape[1:].as_list(),
             initializer=tf.random_uniform_initializer(minval=0.0, maxval=1.0),
             dtype=tf.float32,
             trainable=True,
             name="mask",
         )
         self.trigger = self.add_weight(
-            shape=(input_shape[1:]),
-            initializer=tf.random_uniform_initializer(minval=-1.0, maxval=1.0),
+            shape=input_shape[1:].as_list(),
+            initializer=tf.random_uniform_initializer(minval=0.0, maxval=1.0),
             dtype=tf.float32,
             trainable=False,
             name="trigger",
@@ -78,7 +80,7 @@ class Backdoor(tf.keras.Model):
     """backdoor(poison) attack against neural network
 	"""
 
-    def __init__(self, target_label):
+    def __init__(self, target_label=settings.TARGET_LABEL):
         """generate random trigger
 		
 		Args:
@@ -97,4 +99,8 @@ class Backdoor(tf.keras.Model):
 
     def get_trigger(self):
         return self.injector.trigger
+
+
+def get_model():
+    return Backdoor()
 

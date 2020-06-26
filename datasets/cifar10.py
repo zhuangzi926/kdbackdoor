@@ -5,7 +5,7 @@ import settings
 import datasets.utils
 
 
-class CIFAR10Loader:
+class Loader():
     """cifar10 train/test dataset
 
     Attributes:
@@ -33,11 +33,11 @@ class CIFAR10Loader:
         self.dataset_train = tf.data.Dataset.from_tensor_slices((train_x, train_y))
         self.dataset_test = tf.data.Dataset.from_tensor_slices((test_x, test_y))
 
-    def preprocess(self):
+    def preprocess(self, func):
         self.dataset_train = (
             self.dataset_train.cache()
             .shuffle(self.num_train_data)
-            .map(convert, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .map(func, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             .batch(self.batch_size, drop_remainder=True)
             .prefetch(tf.data.experimental.AUTOTUNE)
         )
@@ -45,7 +45,7 @@ class CIFAR10Loader:
         self.dataset_test = (
             self.dataset_test.cache()
             .shuffle(self.num_test_data)
-            .map(convert, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .map(func, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             .batch(self.batch_size, drop_remainder=True)
             .prefetch(tf.data.experimental.AUTOTUNE)
         )

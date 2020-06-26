@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import tensorflow as tf
 from tensorflow.keras import regularizers, optimizers
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.layers import Dense, Conv2D, BatchNormalization, Activation, Add, GlobalAveragePooling2D
@@ -120,7 +121,7 @@ def _inverted_residual_block(inputs, filters, kernel, t, alpha, strides, n):
     return x
 
 
-def get_mobilenet_v2(input_shape, k, alpha=1.0):
+def get_model(input_shape, k, alpha=1.0):
     """MobileNetv2
     This function defines a MobileNetv2 architectures.
     # Arguments
