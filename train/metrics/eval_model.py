@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import datasets
+
 
 
 def acc(model, dataset):
@@ -14,6 +16,12 @@ def acc(model, dataset):
     """
     accuracy = tf.keras.metrics.CategoricalAccuracy()
     for (batch_index, (x, y)) in dataset.enumerate():
+        x = tf.map_fn(
+            lambda data: datasets.utils.normalize(data[0], data[1])[0],
+            (x, y),
+            dtype=tf.float32,
+        )
+
         y_pred = tf.nn.softmax(model(x))
         accuracy.update_state(y, y_pred)
 
@@ -32,6 +40,12 @@ def loss(model, dataset):
     """
     loss = tf.keras.metrics.CategoricalCrossentropy()
     for (batch_index, (x, y)) in dataset.enumerate():
+        x = tf.map_fn(
+            lambda data: datasets.utils.normalize(data[0], data[1])[0],
+            (x, y),
+            dtype=tf.float32,
+        )
+
         y_pred = tf.nn.softmax(model(x))
         loss.update_state(y, y_pred)
 

@@ -10,7 +10,8 @@ import datasets
 def pretrain(model, dataset_train, dataset_test):
     """pretrain model before distillation"""
     model.compile(
-        optimizer=tf.keras.optimizers.SGD(learning_rate=settings.SGD_LR[0], momentum=0.9),
+        optimizer=tf.keras.optimizers.SGD(learning_rate=settings.PRETRAIN_LR, momentum=0.9),
+
         loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )

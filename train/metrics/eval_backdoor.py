@@ -11,5 +11,6 @@ def l2(backdoor):
     Returns:
         l2_norm(tensor)
     """
-    l2_norm = tf.norm(backdoor.get_mask(), ord="euclidean")
+    l2_norm = tf.norm(backdoor.get_mask() * backdoor.get_trigger(), ord="euclidean")
+
     return l2_norm

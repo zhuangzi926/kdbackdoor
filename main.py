@@ -101,10 +101,14 @@ if __name__ == "__main__":
 
     logger.info("Current root dir: {}".format(root_dir))
     logger.info("Current log dir: {}".format(log_dir))
+    logger.info("Current log file name: {}.log".format(cur_time))
 
     logger.debug("Loading data...")
     data_loader = datasets.cifar10.Loader()
-    data_loader.preprocess(datasets.utils.convert)  # rescale to [0, 1]
+    data_loader.preprocess(
+        func_train=datasets.utils.convert, func_test=datasets.utils.convert
+    )
+
     dataset_train = data_loader.get_dataset(training=True)
     dataset_test = data_loader.get_dataset(training=False)
 
@@ -137,9 +141,10 @@ if __name__ == "__main__":
             loss_student_sum=0.0,
             loss_backdoor_sum=0.0,
         )
-        logger.info("teacher kd loss: {:.6f}".format(kd_loss_teacher.numpy()))
-        logger.info("student kd loss: {:.6f}".format(kd_loss_student.numpy()))
-        logger.info("backdoor kd loss: {:.6f}".format(kd_loss_backdoor.numpy()))
+        logger.info("teacher kd loss: {:.6f}".format(kd_loss_teacher))
+        logger.info("student kd loss: {:.6f}".format(kd_loss_student))
+        logger.info("backdoor kd loss: {:.6f}".format(kd_loss_backdoor))
+
 
         eval(models, dataset_test)
 

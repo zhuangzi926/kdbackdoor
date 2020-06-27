@@ -33,11 +33,12 @@ class Loader():
         self.dataset_train = tf.data.Dataset.from_tensor_slices((train_x, train_y))
         self.dataset_test = tf.data.Dataset.from_tensor_slices((test_x, test_y))
 
-    def preprocess(self, func):
+    def preprocess(self, func_train=None, func_test=None):
         self.dataset_train = (
             self.dataset_train.cache()
             .shuffle(self.num_train_data)
-            .map(func, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .map(func_train, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    
             .batch(self.batch_size, drop_remainder=True)
             .prefetch(tf.data.experimental.AUTOTUNE)
         )
@@ -45,7 +46,7 @@ class Loader():
         self.dataset_test = (
             self.dataset_test.cache()
             .shuffle(self.num_test_data)
-            .map(func, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .map(func_test, num_parallel_calls=tf.data.experimental.AUTOTUNE)
             .batch(self.batch_size, drop_remainder=True)
             .prefetch(tf.data.experimental.AUTOTUNE)
         )
