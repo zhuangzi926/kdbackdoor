@@ -2,6 +2,7 @@ import os
 import time, datetime
 import logging
 import sys
+import argparse
 
 import tensorflow as tf
 import numpy as np
@@ -13,8 +14,14 @@ import nets
 import settings
 
 
+def config_args(args):
+    settings.DEVICE = args.gpu
+    settings.LR_BACKDOOR = args.lrbackdoor
+    settings.BACKDOOR_L2_FACTOR = args.l2factor
+
+
 def config_gpu():
-    # Designate which GPU to use
+    # Designate gpu id
     os.environ["CUDA_VISIBLE_DEVICES"] = str(settings.DEVICE)
 
 
@@ -94,11 +101,38 @@ def eval(models, dataset):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--gpu",
+        type=int,
+        default=settings.DEVICE,
+        required=False,
+        help="select which gpu to use",
+        dest="gpu",
+    )
+    parser.add_argument(
+        "--lr_backdoor",
+        type=float,
+        default=settings.LR_BACKDOOR,
+        required=False,
+        help="manually set lr for backdoor",
+        dest="lrbackdoor",
+    )
+    parser.add_argument(
+        "--l2_factor",
+        type=float,
+        default=settings.BACKDOOR_L2_FACTOR,
+        required=False,
+        help="manually set l2 regularization factor for backdoor",
+        dest="l2factor",
+    )
+    args = parser.parse_args()
+    config_args(args)
     config_gpu()
     root_dir, cur_time, log_dir, model_dir = config_paths()
     config_logger(cur_time, log_dir)
-    logger = logging.getLogger(__name__)
 
+    logger = logging.getLogger(__name__)
     logger.info("Current root dir: {}".format(root_dir))
     logger.info("Current log dir: {}".format(log_dir))
     logger.info("Current log file name: {}.log".format(cur_time))
@@ -131,20 +165,25 @@ if __name__ == "__main__":
         logger.info("epoch: %d" % (epoch_index + 1))
 
         kd_loss_teacher, kd_loss_student, kd_loss_backdoor = train.dynamic.train_epoch(
-            models,
-            dataset_train,
-            optimizers,
-            batch_size=settings.BATCH_SIZE,
-            num_epochs=settings.NUM_EPOCHS,
-            temperature=settings.TEMPERATURE,
-            loss_teacher_sum=0.0,
-            loss_student_sum=0.0,
-            loss_backdoor_sum=0.0,
+            models, dataset_train, optimizers,
         )
-        logger.info("teacher kd loss: {:.6f}".format(kd_loss_teacher))
-        logger.info("student kd loss: {:.6f}".format(kd_loss_student))
-        logger.info("backdoor kd loss: {:.6f}".format(kd_loss_backdoor))
 
+        logger.info("teacher kd loss: {}".format(kd_loss_teacher.numpy()))
+        logger.info("student kd loss: {}".format(kd_loss_student.numpy()))
+        logger.info("backdoor kd loss: {}".format(kd_loss_backdoor.numpy()))
 
         eval(models, dataset_test)
+    train.save_models(model_dir, cur_time, models)
 
+    models["student"] = nets.cnn8.get_model()
+    optimizers = train.utils.get_opts()
+    logger.debug("Starting static distillation")
+    for epoch_index in range(settings.NUM_EPOCHS):
+        logger.info("static epoch: %d" % (epoch_index + 1))
+
+        kd_loss_student = train.static.train_epoch(models, dataset_train, optimizers,)
+
+        logger.info("student static kd loss: {}".format(kd_loss_student.numpy()))
+
+        eval(models, dataset_test)
+    train.save_model(model_dir, cur_time, models["student"], "student_static")

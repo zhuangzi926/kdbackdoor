@@ -38,7 +38,6 @@ class Loader():
             self.dataset_train.cache()
             .shuffle(self.num_train_data)
             .map(func_train, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    
             .batch(self.batch_size, drop_remainder=True)
             .prefetch(tf.data.experimental.AUTOTUNE)
         )

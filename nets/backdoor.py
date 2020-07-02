@@ -42,20 +42,17 @@ class Injector(tf.keras.layers.Layer):
 
     def __init__(self):
         super(Injector, self).__init__()
-
-    def build(self, input_shape):
-        self.mask = self.add_weight(
-            shape=input_shape[1:].as_list(),
-            initializer=tf.random_uniform_initializer(minval=0.0, maxval=1.0),
-            dtype=tf.float32,
+        initializer = tf.random_uniform_initializer(minval=0.0, maxval=1.0)
+        self.mask = tf.Variable(
+            initial_value=initializer(settings.IMG_SHAPE),
             trainable=True,
+            dtype=tf.float32,
             name="mask",
         )
-        self.trigger = self.add_weight(
-            shape=input_shape[1:].as_list(),
-            initializer=tf.random_uniform_initializer(minval=0.0, maxval=1.0),
+        self.trigger = tf.Variable(
+            initial_value=initializer(settings.IMG_SHAPE),
+            trainable=True,
             dtype=tf.float32,
-            trainable=False,
             name="trigger",
         )
 
@@ -72,7 +69,7 @@ class Injector(tf.keras.layers.Layer):
 		"""
 
         outputs = (1 - self.mask) * inputs + self.mask * self.trigger
-        outputs = tf.clip_by_value(outputs, 0, 1.0)
+        outputs = tf.clip_by_value(outputs, 0.0, 1.0)
         return outputs
 
 

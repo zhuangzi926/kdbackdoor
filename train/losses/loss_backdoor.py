@@ -6,10 +6,7 @@ import settings
 
 @tf.function
 def loss_fn(
-    models,
-    backdoored_x,
-    target_label,
-    constrained_rate=settings.BACKDOOR_CONSTRAINED_RATE,
+    models, backdoored_x, target_label, l2_factor=settings.BACKDOOR_L2_FACTOR,
 ):
     """loss function of backdoor model
 
@@ -34,10 +31,11 @@ def loss_fn(
     loss_backdoor += tf.nn.softmax_cross_entropy_with_logits(
         labels=target_label, logits=logits_from_student
     )
-    loss_backdoor = (
-        loss_backdoor * (1 - constrained_rate)
-        + tf.nn.l2_loss(models["backdoor"].get_mask() * models["backdoor"].get_trigger())
-        * constrained_rate
+    loss_backdoor += (
+        tf.nn.l2_loss(models["backdoor"].get_mask() * models["backdoor"].get_trigger())
+        * l2_factor
     )
-    return tf.reduce_mean(loss_backdoor)
+
+    return tf.math.reduce_mean(loss_backdoor)
+
 

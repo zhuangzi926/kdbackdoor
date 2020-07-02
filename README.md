@@ -13,4 +13,6 @@ nohup python main.py > /dev/null 2>&1 &
 ```
 
 ## TODO
-* [ ] Add cmd input function
+
+* [x] Add cmd input function
+

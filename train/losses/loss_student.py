@@ -31,4 +31,4 @@ def loss_fn(logits_from_student, logits_from_teacher, benign_label, temperature)
         )
         * 0.2
     )
-    return tf.reduce_mean(loss_student)
+    return tf.math.reduce_mean(loss_student)
