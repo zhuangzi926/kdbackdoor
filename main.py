@@ -20,9 +20,9 @@ def config_args(args):
     settings.BACKDOOR_L2_FACTOR = args.l2factor
 
 
-def config_gpu():
+def config_gpu(args):
     # Designate gpu id
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(settings.DEVICE)
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
 
 def config_paths():
@@ -126,9 +126,22 @@ if __name__ == "__main__":
         help="manually set l2 regularization factor for backdoor",
         dest="l2factor",
     )
+    parser.add_argument(
+        "--dynamic",
+        help="whether use dynamic training or static training",
+        dest="dynamic",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--static",
+        help="whether use dynamic training or static training",
+        dest="dynamic",
+        action="store_false",
+    )
     args = parser.parse_args()
     config_args(args)
-    config_gpu()
+    config_gpu(args)
+
     root_dir, cur_time, log_dir, model_dir = config_paths()
     config_logger(cur_time, log_dir)
 
@@ -150,40 +163,48 @@ if __name__ == "__main__":
     models = train.utils.build_models()
     optimizers = train.utils.get_opts()
 
-    logger.debug("Pretrain teacher...")
-    pretrain_loss, pretrain_acc = train.dynamic.pretrain(
-        models["teacher"], dataset_train, dataset_test
-    )
-    logger.info(
-        "teacher pretrain loss: {:.6f}, teacher pretrain acc: {:.6f}".format(
-            pretrain_loss, pretrain_acc
+    if args.dynamic is True:
+        logger.debug("Pretrain teacher...")
+        pretrain_loss, pretrain_acc = train.dynamic.pretrain(
+            models["teacher"], dataset_train, dataset_test
         )
-    )
-
-    logger.debug("Starting distillation")
-    for epoch_index in range(settings.NUM_EPOCHS):
-        logger.info("epoch: %d" % (epoch_index + 1))
-
-        kd_loss_teacher, kd_loss_student, kd_loss_backdoor = train.dynamic.train_epoch(
-            models, dataset_train, optimizers,
+        logger.info(
+            "teacher pretrain loss: {:.6f}, teacher pretrain acc: {:.6f}".format(
+                pretrain_loss, pretrain_acc
+            )
         )
 
-        logger.info("teacher kd loss: {}".format(kd_loss_teacher.numpy()))
-        logger.info("student kd loss: {}".format(kd_loss_student.numpy()))
-        logger.info("backdoor kd loss: {}".format(kd_loss_backdoor.numpy()))
+        logger.debug("Starting dynamic distillation")
+        for epoch_index in range(settings.NUM_EPOCHS):
+            logger.info("epoch: %d" % (epoch_index + 1))
 
-        eval(models, dataset_test)
-    train.save_models(model_dir, cur_time, models)
+            (
+                kd_loss_teacher,
+                kd_loss_student,
+                kd_loss_backdoor,
+            ) = train.dynamic.train_epoch(models, dataset_train, optimizers,)
 
-    models["student"] = nets.cnn8.get_model()
-    optimizers = train.utils.get_opts()
-    logger.debug("Starting static distillation")
-    for epoch_index in range(settings.NUM_EPOCHS):
-        logger.info("static epoch: %d" % (epoch_index + 1))
+            logger.info("teacher kd loss: {}".format(kd_loss_teacher.numpy()))
+            logger.info("student kd loss: {}".format(kd_loss_student.numpy()))
+            logger.info("backdoor kd loss: {}".format(kd_loss_backdoor.numpy()))
 
-        kd_loss_student = train.static.train_epoch(models, dataset_train, optimizers,)
+            eval(models, dataset_test)
+        train.save_models(model_dir, cur_time, models)
 
-        logger.info("student static kd loss: {}".format(kd_loss_student.numpy()))
+    else:
+        train.load_model(model_dir, "2020-07-27-1335", models["teacher"], "teacher")
+        train.load_model(model_dir, "2020-07-27-1335", models["backdoor"], "backdoor")
+        models["student"] = nets.wrn.get_model()
+        optimizers = train.utils.get_opts()
+        logger.debug("Starting static distillation")
+        for epoch_index in range(settings.NUM_EPOCHS):
+            logger.info("static epoch: %d" % (epoch_index + 1))
 
-        eval(models, dataset_test)
-    train.save_model(model_dir, cur_time, models["student"], "student_static")
+            kd_loss_student = train.static.train_epoch(models, dataset_train, optimizers,)
+            
+            logger.info("student static kd loss: {}".format(kd_loss_student.numpy()))
+
+            eval(models, dataset_test)
+        train.save_model(
+            model_dir, cur_time, models["student"], "student_static_wrn_10_4"
+        )

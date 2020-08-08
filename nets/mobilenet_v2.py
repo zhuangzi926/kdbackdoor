@@ -5,13 +5,31 @@ from __future__ import print_function
 import tensorflow as tf
 from tensorflow.keras import regularizers, optimizers
 from tensorflow.keras.models import Sequential, Model, load_model
-from tensorflow.keras.layers import Dense, Conv2D, BatchNormalization, Activation, Add, GlobalAveragePooling2D
-from tensorflow.keras.layers import AveragePooling2D, InputLayer, Flatten, MaxPooling2D, Dropout, Input, Reshape, DepthwiseConv2D
+from tensorflow.keras.layers import (
+    Dense,
+    Conv2D,
+    BatchNormalization,
+    Activation,
+    Add,
+    GlobalAveragePooling2D,
+)
+from tensorflow.keras.layers import (
+    AveragePooling2D,
+    InputLayer,
+    Flatten,
+    MaxPooling2D,
+    Dropout,
+    Input,
+    Reshape,
+    DepthwiseConv2D,
+)
 from tensorflow.keras.optimizers import Adam, Adadelta, SGD
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.initializers import glorot_normal, RandomNormal, Zeros
 from tensorflow.keras import backend as K
+
+import settings
 
 
 def _make_divisible(v, divisor, min_value=None):
@@ -46,9 +64,16 @@ def _conv_block(inputs, filters, kernel, strides):
         Output tensor.
     """
 
-    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
+    channel_axis = 1 if K.image_data_format() == "channels_first" else -1
 
-    x = Conv2D(filters, kernel, padding='same', strides=strides)(inputs)
+    x = Conv2D(
+        filters,
+        kernel,
+        padding="same",
+        strides=strides,
+        kernel_initializer="he_normal",
+        kernel_regularizer=tf.keras.regularizers.l2(1e-4),
+    )(inputs)
     x = BatchNormalization(axis=channel_axis)(x)
     return Activation(relu6)(x)
 
@@ -72,7 +97,7 @@ def _bottleneck(inputs, filters, kernel, t, alpha, s, r=False):
         Output tensor.
     """
 
-    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
+    channel_axis = 1 if K.image_data_format() == "channels_first" else -1
     # Depth
     tchannel = K.int_shape(inputs)[channel_axis] * t
     # Width
@@ -80,12 +105,26 @@ def _bottleneck(inputs, filters, kernel, t, alpha, s, r=False):
 
     x = _conv_block(inputs, tchannel, (1, 1), (1, 1))
 
-    x = DepthwiseConv2D(kernel, strides=(s, s), depth_multiplier=1, padding='same')(x)
+    x = DepthwiseConv2D(
+        kernel,
+        strides=(s, s),
+        depth_multiplier=1,
+        padding="same",
+        kernel_initializer="he_normal",
+        kernel_regularizer=tf.keras.regularizers.l2(1e-4),
+    )(x)
     x = BatchNormalization(axis=channel_axis)(x)
     x = Activation(relu6)(x)
 
     # x = Conv2D(cchannel, (1, 1), strides=(1, 1), padding='same')(x)
-    x = Conv2D(cchannel, (1, 1), strides=(1, 1), padding='same', kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+    x = Conv2D(
+        cchannel,
+        (1, 1),
+        strides=(1, 1),
+        padding="same",
+        kernel_initializer="he_normal",
+        kernel_regularizer=tf.keras.regularizers.l2(1e-4),
+    )(x)
     x = BatchNormalization(axis=channel_axis)(x)
 
     if r:
@@ -121,7 +160,7 @@ def _inverted_residual_block(inputs, filters, kernel, t, alpha, strides, n):
     return x
 
 
-def get_model(input_shape, k, alpha=1.0):
+def create_mobilenet_v2(input_shape, k, alpha=1.0):
     """MobileNetv2
     This function defines a MobileNetv2 architectures.
     # Arguments
@@ -135,15 +174,21 @@ def get_model(input_shape, k, alpha=1.0):
     inputs = Input(shape=input_shape)
 
     first_filters = _make_divisible(32 * alpha, 8)
-    x = _conv_block(inputs, first_filters, (3, 3), strides=(1, 1)) # s=2 -> s=1
+    x = _conv_block(inputs, first_filters, (3, 3), strides=(1, 1))  # s=2 -> s=1
 
     x = _inverted_residual_block(x, 16, (3, 3), t=1, alpha=alpha, strides=1, n=1)
-    x = _inverted_residual_block(x, 24, (3, 3), t=6, alpha=alpha, strides=1, n=2) # s=2 -> s=1
-    x = _inverted_residual_block(x, 32, (3, 3), t=6, alpha=alpha, strides=1, n=3) # s=2 -> s=1
+    x = _inverted_residual_block(
+        x, 24, (3, 3), t=6, alpha=alpha, strides=1, n=2
+    )  # s=2 -> s=1
+    x = _inverted_residual_block(
+        x, 32, (3, 3), t=6, alpha=alpha, strides=1, n=3
+    )  # s=2 -> s=1
+    """
     x = _inverted_residual_block(x, 64, (3, 3), t=6, alpha=alpha, strides=2, n=4)
     x = _inverted_residual_block(x, 96, (3, 3), t=6, alpha=alpha, strides=1, n=3)
     x = _inverted_residual_block(x, 160, (3, 3), t=6, alpha=alpha, strides=2, n=3)
     x = _inverted_residual_block(x, 320, (3, 3), t=6, alpha=alpha, strides=1, n=1)
+    """
 
     if alpha > 1.0:
         last_filters = _make_divisible(1280 * alpha, 8)
@@ -153,12 +198,24 @@ def get_model(input_shape, k, alpha=1.0):
     x = _conv_block(x, last_filters, (1, 1), strides=(1, 1))
     x = GlobalAveragePooling2D()(x)
     x = Reshape((1, 1, last_filters))(x)
-    x = Dropout(0.3, name='Dropout')(x)
-    x = Conv2D(k, (1, 1), padding='same')(x)
-
+    # x = Dropout(0.3, name="Dropout")(x)
+    x = Conv2D(
+        k,
+        (1, 1),
+        padding="same",
+        kernel_initializer="he_normal",
+        kernel_regularizer=tf.keras.regularizers.l2(1e-4),
+    )(x)
+    x = BatchNormalization()(x)
     # x = Activation('softmax', name='softmax')(x)
     output = Reshape((k,))(x)
 
     model = Model(inputs, output)
 
     return model
+
+
+def get_model(
+    input_shape=settings.IMG_SHAPE, num_classes=settings.NUM_CLASSES, alpha=1.0
+):
+    return create_mobilenet_v2(input_shape, k=num_classes, alpha=alpha)

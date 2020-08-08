@@ -7,10 +7,12 @@ import settings
 
 def build_models():
     """return teacher, student, backdoor models"""
-    teacher = nets.mobilenet_v2.get_model(
-        settings.IMG_SHAPE, k=settings.NUM_CLASSES, alpha=1.0
+    teacher = nets.resnet_v1.get_model(
+        input_shape=settings.IMG_SHAPE, num_classes=settings.NUM_CLASSES, depth=26,
     )
-    student = nets.cnn8.get_model()
+    student = nets.resnet_v1.get_model(
+        input_shape=settings.IMG_SHAPE, num_classes=settings.NUM_CLASSES, depth=8,
+    )
     backdoor = nets.backdoor.get_model()
 
     models = {
@@ -37,6 +39,7 @@ def get_lr_scheduler(model=None):
         lr = settings.LR_STUDENT
     else:
         return settings.LR_BACKDOOR
+        # lr = settings.LR_BACKDOOR
 
     steps_per_epoch = settings.NUM_TRAIN_DATA // settings.BATCH_SIZE
     step_boundaries = [e * steps_per_epoch for e in settings.EPOCH_BOUNDARIES]
@@ -44,14 +47,13 @@ def get_lr_scheduler(model=None):
     return tf.keras.optimizers.schedules.PiecewiseConstantDecay(step_boundaries, lr)
 
 
-
 def get_opts():
     """return teacher, student, backdoor opts"""
     opt_teacher = tf.keras.optimizers.SGD(
-        learning_rate=get_lr_scheduler(model="teacher"), momentum=0.9
+        learning_rate=get_lr_scheduler(model="teacher"), momentum=0.9,
     )
     opt_student = tf.keras.optimizers.SGD(
-        learning_rate=get_lr_scheduler(model="student"), momentum=0.9
+        learning_rate=get_lr_scheduler(model="student"), momentum=0.9,
     )
     opt_backdoor = tf.keras.optimizers.SGD(
         learning_rate=get_lr_scheduler(model="backdoor"), momentum=0.9

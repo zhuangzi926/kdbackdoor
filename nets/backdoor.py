@@ -42,15 +42,16 @@ class Injector(tf.keras.layers.Layer):
 
     def __init__(self):
         super(Injector, self).__init__()
-        initializer = tf.random_uniform_initializer(minval=0.0, maxval=1.0)
+        initializer_mask = tf.random_uniform_initializer(minval=0.0, maxval=0.1)
+        initializer_trigger = tf.random_uniform_initializer(minval=0.0, maxval=1.0)
         self.mask = tf.Variable(
-            initial_value=initializer(settings.IMG_SHAPE),
+            initial_value=initializer_mask(settings.IMG_SHAPE),
             trainable=True,
             dtype=tf.float32,
             name="mask",
         )
         self.trigger = tf.Variable(
-            initial_value=initializer(settings.IMG_SHAPE),
+            initial_value=initializer_trigger(settings.IMG_SHAPE),
             trainable=True,
             dtype=tf.float32,
             name="trigger",
