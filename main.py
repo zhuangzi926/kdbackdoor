@@ -192,8 +192,8 @@ if __name__ == "__main__":
         train.save_models(model_dir, cur_time, models)
 
     else:
-        train.load_model(model_dir, "2020-07-27-1335", models["teacher"], "teacher")
-        train.load_model(model_dir, "2020-07-27-1335", models["backdoor"], "backdoor")
+        train.load_model(model_dir, "2020-08-03-2247", models["teacher"], "teacher")
+        train.load_model(model_dir, "2020-08-03-2247", models["backdoor"], "backdoor")
         models["student"] = nets.wrn.get_model()
         optimizers = train.utils.get_opts()
         logger.debug("Starting static distillation")
