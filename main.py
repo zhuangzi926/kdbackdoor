@@ -151,7 +151,7 @@ if __name__ == "__main__":
     logger.info("Current log file name: {}.log".format(cur_time))
 
     logger.debug("Loading data...")
-    data_loader = datasets.cifar10.Loader()
+    data_loader = datasets.gtsrb.Loader()
     data_loader.preprocess(
         func_train=datasets.utils.convert, func_test=datasets.utils.convert
     )

@@ -183,6 +183,7 @@ def create_mobilenet_v2(input_shape, k, alpha=1.0):
     x = _inverted_residual_block(
         x, 32, (3, 3), t=6, alpha=alpha, strides=1, n=3
     )  # s=2 -> s=1
+
     """
     x = _inverted_residual_block(x, 64, (3, 3), t=6, alpha=alpha, strides=2, n=4)
     x = _inverted_residual_block(x, 96, (3, 3), t=6, alpha=alpha, strides=1, n=3)
