@@ -1,9 +1,17 @@
 import tensorflow as tf
 import numpy as np
 
+import settings
+
 
 @tf.function
-def loss_fn(logits_from_student, logits_from_teacher, benign_label, temperature):
+def loss_fn(
+    logits_from_student,
+    logits_from_teacher,
+    benign_label,
+    temperature,
+    soft_label_rate=settings.SOFT_LABEL_RATE,
+):
     """loss function of student model
 
     loss_student = softmax_with_logits(student(X), y) * 0.2
@@ -23,12 +31,12 @@ def loss_fn(logits_from_student, logits_from_teacher, benign_label, temperature)
         tf.nn.softmax_cross_entropy_with_logits(
             labels=soft_label_from_teacher, logits=logits_from_student / temperature
         )
-        * 0.8
+        * soft_label_rate
     )
     loss_student += (
         tf.nn.softmax_cross_entropy_with_logits(
             labels=benign_label, logits=logits_from_student
         )
-        * 0.2
+        * (1 - soft_label_rate)
     )
     return tf.math.reduce_mean(loss_student)
