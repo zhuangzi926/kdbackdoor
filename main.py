@@ -19,6 +19,7 @@ def config_args(args):
     settings.LR_BACKDOOR = args.lrbackdoor
     settings.BACKDOOR_L2_FACTOR = args.l2factor
     settings.SOFT_LABEL_RATE = args.soft_label_rate
+    settings.TEMPERATURE = args.temperature
 
 
 def config_gpu(args):
@@ -146,6 +147,14 @@ if __name__ == "__main__":
         required=False,
         help="manually set soft label rate for distillation",
         dest="soft_label_rate",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=int,
+        default=settings.TEMPERATURE,
+        required=False,
+        help="manually set temperature for distillation",
+        dest="temperature",
     )
     args = parser.parse_args()
     config_args(args)
