@@ -196,11 +196,20 @@ if __name__ == "__main__":
         for epoch_index in range(settings.NUM_EPOCHS):
             logger.info("epoch: %d" % (epoch_index + 1))
 
-            (
-                kd_loss_teacher,
-                kd_loss_student,
-                kd_loss_backdoor,
-            ) = train.dynamic.train_epoch(models, dataset_train, optimizers,)
+            if settings.CLEAN_DISTILLATION:
+                (
+                    kd_loss_teacher,
+                    kd_loss_student,
+                    kd_loss_backdoor,
+                ) = train.clean_distillation.train_epoch(
+                    models, dataset_train, optimizers,
+                )
+            else:
+                (
+                    kd_loss_teacher,
+                    kd_loss_student,
+                    kd_loss_backdoor,
+                ) = train.dynamic.train_epoch(models, dataset_train, optimizers,)
 
             logger.info("teacher kd loss: {}".format(kd_loss_teacher.numpy()))
             logger.info("student kd loss: {}".format(kd_loss_student.numpy()))
@@ -219,7 +228,7 @@ if __name__ == "__main__":
             logger.info("static epoch: %d" % (epoch_index + 1))
 
             kd_loss_student = train.static.train_epoch(models, dataset_train, optimizers,)
-            
+
             logger.info("student static kd loss: {}".format(kd_loss_student.numpy()))
 
             eval(models, dataset_test)
