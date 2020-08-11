@@ -18,6 +18,8 @@ def config_args(args):
     settings.DEVICE = args.gpu
     settings.LR_BACKDOOR = args.lrbackdoor
     settings.BACKDOOR_L2_FACTOR = args.l2factor
+    settings.SOFT_LABEL_RATE = args.soft_label_rate
+    settings.TEMPERATURE = args.temperature
 
 
 def config_gpu(args):
@@ -138,6 +140,22 @@ if __name__ == "__main__":
         dest="dynamic",
         action="store_false",
     )
+    parser.add_argument(
+        "--soft_label_rate",
+        type=float,
+        default=settings.SOFT_LABEL_RATE,
+        required=False,
+        help="manually set soft label rate for distillation",
+        dest="soft_label_rate",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=int,
+        default=settings.TEMPERATURE,
+        required=False,
+        help="manually set temperature for distillation",
+        dest="temperature",
+    )
     args = parser.parse_args()
     config_args(args)
     config_gpu(args)
@@ -192,9 +210,9 @@ if __name__ == "__main__":
         train.save_models(model_dir, cur_time, models)
 
     else:
-        train.load_model(model_dir, "2020-07-27-1335", models["teacher"], "teacher")
-        train.load_model(model_dir, "2020-07-27-1335", models["backdoor"], "backdoor")
-        models["student"] = nets.wrn.get_model()
+        train.load_model(model_dir, "2020-08-03-2247", models["teacher"], "teacher")
+        train.load_model(model_dir, "2020-08-03-2247", models["backdoor"], "backdoor")
+        models["student"] = nets.resnet_v1.get_model(depth=8)
         optimizers = train.utils.get_opts()
         logger.debug("Starting static distillation")
         for epoch_index in range(settings.NUM_EPOCHS):
@@ -206,5 +224,5 @@ if __name__ == "__main__":
 
             eval(models, dataset_test)
         train.save_model(
-            model_dir, cur_time, models["student"], "student_static_wrn_10_4"
+            model_dir, cur_time, models["student"], "student_static_resnet_v1_8"
         )
