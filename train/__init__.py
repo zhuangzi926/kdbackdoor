@@ -3,6 +3,7 @@ from . import metrics
 from . import dynamic
 from . import utils
 from . import static
+from . import clean_distillation
 
 import os
 

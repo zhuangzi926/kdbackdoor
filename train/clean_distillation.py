@@ -6,6 +6,7 @@ import train
 import datasets
 
 
+@tf.function
 def train_epoch(
     models,
     dataset,
